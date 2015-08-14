@@ -1,4 +1,4 @@
-package com.wh.lanmsg;
+package wh.lanmsg;
 
 /**
  * Functions useful for debugging and analysis purposes.

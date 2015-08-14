@@ -1,4 +1,4 @@
-package com.wh.lanmsg;
+package wh.lanmsg;
 
 /**
  *
