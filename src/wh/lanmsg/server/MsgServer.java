@@ -12,8 +12,6 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import wh.lanmsg.Debug;
 
 /**
@@ -59,7 +57,6 @@ public class MsgServer
         serverSocket.bind(new InetSocketAddress(bindAddr, port));
         System.out.printf("Listening on port %d...\n", port);
         
-        
         isRunning = true;
         System.out.printf("Server started.\n");
         
@@ -71,7 +68,7 @@ public class MsgServer
                 commandInput();
             }
         };
-        new Thread(cmdInputThread).start();
+        new Thread(cmdInputThread, "CommandInput-Thread").start();
         
         listen();
     }
@@ -133,7 +130,7 @@ public class MsgServer
                         }
                     }
                 };
-                new Thread(r).start();
+                new Thread(r, "ConnectionListen-Thread").start();
             }
         } catch (SocketException ex) {
             if (!isRunning) {
@@ -152,25 +149,30 @@ public class MsgServer
         
         InputStream in = s.getInputStream();
         
-        int protocolVer, sizeOfData;
+        final int HEADER_SIZE = 0x30;
+        byte[] header = new byte[HEADER_SIZE];
         byte[] data;
+        int sizeOfData;
+        int bytesRead;
+        
         try {
             while (isRunning) {
-                protocolVer = in.read();
-                if (protocolVer == -1) {
-                    System.out.println(
-                            "Connection terminated by foreign host.\n");
-                    break;
+                if ((bytesRead = in.read(header)) != HEADER_SIZE) {
+                    throw new IOException("data misread!");
                 }
-                sizeOfData = in.read();
+                System.out.printf("Header received!\n");
+                dbg.printHexDump(header);
+                
+                sizeOfData = (header[0x20] & 0xFF) << 0
+                        | (header[0x21] & 0xFF) << 8
+                        | (header[0x22] & 0xFF) << 16
+                        | (header[0x23] & 0xFF) << 24;
                 data = new byte[sizeOfData];
-                in.read(data);
-                System.out.printf("Message received.\n");
-                System.out.printf("    protocol ver: %d\n", protocolVer);
-                System.out.printf("    size of data: %d\n", sizeOfData);
-                System.out.printf("    data dump:\n");
-                System.out.printf("    %s\n",
-                        dbg.hexDump(data).replaceAll("\n", "\n    "));
+                if ((bytesRead = in.read(data)) != sizeOfData) {
+                    throw new IOException("data misread!");
+                }
+                System.out.printf("\nData received!\n");
+                dbg.printHexDump(data);
             }
         } catch (SocketException ex) {
             if (!isRunning) {
