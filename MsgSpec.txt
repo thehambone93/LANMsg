@@ -1,0 +1,94 @@
+Msg Protocol Specification
+==========================
+An instant messaging protocol.
+Designed by Wes Hampson.
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+1. Basic Client-to-Server Message Design
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+All bytes are arranged in little-endian byte order.
+
+a. Message Header Packet
+------------------------
+
++======++===+===+===+===+===+===+===+===+===+===+===+===+===+===+===+===+
+|      || 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | A | B | C | D | E | F |
++======++===+===+===+===+===+===+===+===+===+===+===+===+===+===+===+===+
+| 0000 ||'H'|'E'|'A'|'D'| protocol ver  | type  | gflag | pflag |(align)|
++------++---+---+---+---+---------------+-------+-------+-------+-------+
+| 0010 || timestamp                     | sender id     | recipient id  |
++------++---------------+---------------+---------------+---------------+
+| 0020 || payload size  | xtnd hdr size | (reserved)                    |
++======++===============+===============+===============================+
+Total size: 0x30 (48) bytes
+
+    protocol ver - message protocol version; major.minor.subminor.build
+            type - message data type (defined in section 1c)
+           gflag - global flags (binary: 00000abc)
+                     a - G_BCAST; message should be sent to all clients (except
+                          sender)
+                     b - G_XTND_HDR; message has an extended header
+                     c - G_MULTI_RECIP; message has multiple recipients;
+                         another packet (extended header) will follow
+                         containing ids of other recipients
+                   all other bits are reserved for future use and should be set
+                   to 0
+           pflag - payload-specific flags (see section 1c)
+       timestamp - time in millis since epoch (Jan 1, 1970 00:00:00:0000)
+       sender id - the id number of the sender
+    recipient id - the id number of the recipient (or 1st recipient if
+                   G_MULTI_RECIP is set); 0xFFFFFFFF indicates
+                   broadcast if G_BCAST is set
+    payload size - the size in bytes of the message data packet
+   xtnd hdr size - size of extended header (if G_XTND_HDR set);
+
+b. Extended Header Packet
+-------------------------
+
++======++===+===+===+===+===+===+===+===+===+===+===+===+===+===+===+===+
+|      || 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | A | B | C | D | E | F |
++======++===+===+===+===+===+===+===+===+===+===+===+===+===+===+===+===+
+| 0000 ||'X'|'T'|'N'|'D'| no. of sects  | section id    | size of sect  |
++------++---+---+---+---+---------------+---------------+---------------+
+| 0010 || section data                                                  |
++------++-                                                              |
+| ...  || ...                                                           |
++------++----------------+---------------+------------------------------+
+| ...  || section id     | size of sect  | section data                 |
++------++----------------+---------------+                              |
+| ...  || ... (etc.)                                                    |
++======++===============================================================+
+
+    no. of sects - number of sections in the data
+      section id - a 4-character section identification string
+    size of sect - the size of the next section
+    section data - the actual data contained within the header section
+
+## Defined Extended Header Sections
+    RCIP - additional recipients
+        0000:  byte[4]      no of recipients (n)
+        0004:  byte[n * 4]  recipients (4 bytes each)
+        
+
+c. Message Data Packet
+----------------------
+
+All data packets will have the following header:
++======++===+===+===+===+===+===+===+===+
+|      || 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
++======++===+===+===+===+===+===+===+===+
+| 0000 ||'D'|'A'|'T'|'A'| size of data  |
++------++---+---+---+---+---------------+
+
+## Defined Message Data Types
+    type id  name
+    1        TEXT
+
+#### TEXT
+    0000:  byte      encoding id
+                         0 = ISO-8859-1
+                         1 = UTF-8
+                         2 = UTF-16LE
+                         3 = UTF-16BE
+    0002:  (align)
+    0003:   -        text data (up to null char)
